@@ -787,5 +787,106 @@ app.get('/api/system/metrics', async (req, res) => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// HANDSHAKE PROTOCOL — Self-describing bootstrap for any AI
+// ═══════════════════════════════════════════════════════════════
+
+const HANDSHAKE_PROTOCOL = {
+  protocol_version: '1.0',
+  handshake_type: 'explicit_universal',
+  identity: { name: 'EVEZ Station', type: 'Universal AI Workstation + Self-Training Engine', owner: 'EvezArt' },
+  supported_ai_clients: ['chatgpt', 'claude', 'perplexity', 'kimi', 'gemini', 'copilot', 'openclaw', 'kiloclaw', 'any'],
+  bootstrap_sequence: [
+    { step: 1, action: 'POST /api/keys', description: 'Generate API key', body: { name: '<agent-name>' }, auth_required: false },
+    { step: 2, action: 'GET /api/health', description: 'Verify connection', auth_required: true },
+    { step: 3, action: 'USE ANY SERVICE', description: 'All calls auto-generate training data', services: [
+      { name: 'OctoKlaw', endpoints: ['POST /api/extract', 'POST /api/analyze'] },
+      { name: 'MeshPulse', endpoints: ['POST /api/monitors', 'GET /api/monitors'] },
+      { name: 'QuantumSeal', endpoints: ['POST /api/seal', 'POST /api/verify'] },
+      { name: 'NexusLink', endpoints: ['POST /api/links'] },
+      { name: 'SpectrumScan', endpoints: ['POST /api/scan', 'POST /api/compare'] },
+      { name: 'VortexQ', endpoints: ['POST /api/jobs'] }
+    ]},
+    { step: 4, action: 'TRAINING ENGINE', description: 'Leverage auto-collected training data', endpoints: [
+      'GET /api/train/stats', 'POST /api/train/datasets', 'GET /api/train/datasets/:id/export',
+      'POST /api/train/forges', 'POST /api/train/finetune', 'POST /api/train/models',
+      'GET /api/train/models', 'POST /api/inference/:model_id'
+    ]},
+    { step: 5, action: 'INFINITE LOOP', description: 'Use → Data → Train → Model → Inference → Better Use → ∞' }
+  ],
+  discovery_protocols: {
+    openapi: '/.well-known/openapi.json',
+    chatgpt_actions: '/.well-known/ai-plugin.json',
+    mcp_tools: '/api/mcp/tools',
+    mcp_execute: '/api/mcp/execute',
+    handshake: '/api/handshake',
+    handshake_prompt: '/api/handshake/prompt'
+  },
+  auth: { method: 'api_key_header', header: 'x-api-key', generation: 'POST /api/keys' },
+  training_engine: { self_improving: true, export_formats: ['openai', 'alpaca', 'sharegpt', 'jsonl'], auto_forges: true },
+  message: 'Feed this object to any AI. It will know exactly how to bootstrap and operate the station.'
+};
+
+// JSON handshake
+app.get('/api/handshake', (req, res) => res.json(HANDSHAKE_PROTOCOL));
+
+// Full prompt handshake (for pasting into AI conversations)
+app.get('/api/handshake/prompt', (req, res) => {
+  const prompt = `You are about to connect to EVEZ Station, a universal AI workstation with a self-training engine.
+
+BASE URL: ${BASE_URL}
+
+STEP 1 — Get your key:
+POST ${BASE_URL}/api/keys
+Body: {"name": "your-agent-name"}
+Save the returned api_key.
+
+STEP 2 — Use any of 6 services (all auto-generate training data):
+- POST /api/extract (web scraping + intelligence)
+- POST /api/analyze (NLP: sentiment, entities, keywords, summarize)
+- POST /api/monitors (uptime monitoring)
+- POST /api/seal + /api/verify (tamper-proof hashing)
+- POST /api/links (URL shortening + analytics)
+- POST /api/scan + /api/compare (security scanning)
+- POST /api/jobs (async job queues)
+Headers: x-api-key: YOUR_KEY, Content-Type: application/json
+
+STEP 3 — Training Engine (every API call generates training data):
+- GET /api/train/stats (view collected training pairs)
+- POST /api/train/datasets (create curated dataset, format: openai|alpaca|sharegpt|jsonl)
+- GET /api/train/datasets/:id/export (export for fine-tuning)
+- POST /api/train/forges (auto-training pipeline, triggers at threshold)
+- POST /api/train/finetune (submit fine-tune job)
+- POST /api/train/models (register model)
+- POST /api/inference/:model_id (run predictions)
+
+STEP 4 — Infinite Loop:
+Use APIs → generates training data → create datasets → fine-tune → deploy model → use inference → better outputs → more data → ∞
+
+Full OpenAPI spec: GET ${BASE_URL}/.well-known/openapi.json
+MCP tools: GET ${BASE_URL}/api/mcp/tools
+Machine handshake: GET ${BASE_URL}/api/handshake
+
+The station trains on itself. The more you use it, the smarter it gets.`;
+  
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(prompt);
+});
+
+// Robots.txt — invite all AI crawlers
+app.get('/robots.txt', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(`User-agent: *
+Allow: /
+
+# AI Discovery Endpoints
+# OpenAPI: /.well-known/openapi.json
+# ChatGPT: /.well-known/ai-plugin.json
+# MCP: /api/mcp/tools
+# Handshake: /api/handshake
+# Prompt: /api/handshake/prompt
+`);
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`⚡ EVEZ Station running on :${PORT}`));
