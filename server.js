@@ -2,6 +2,7 @@ import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { createHash, randomBytes } from 'crypto';
 import cors from 'cors';
+import { storage } from "./storage.js";
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -886,6 +887,40 @@ Allow: /
 # Handshake: /api/handshake
 # Prompt: /api/handshake/prompt
 `);
+});
+
+
+// ── Tigris Object Storage (S3-compatible) ──
+app.post('/api/storage/upload', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { key, content, content_type } = req.body;
+  if (!key || !content) return res.status(400).json({ error: 'key and content required' });
+  const result = await storage.put(key, Buffer.from(content, 'base64'), content_type || 'application/octet-stream');
+  if (result.error) return res.status(500).json({ error: result.error });
+  res.status(201).json({ key, url: result.url, size: Buffer.from(content, 'base64').length });
+});
+
+app.get('/api/storage/list', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const prefix = req.query.prefix || '';
+  const result = await storage.list(prefix);
+  if (result.error) return res.status(500).json({ error: result.error });
+  res.json({ objects: result.objects, prefix });
+});
+
+app.get('/api/storage/get/:key(*)', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const result = await storage.get(req.params.key);
+  if (result.error) return res.status(404).json({ error: result.error });
+  res.setHeader('Content-Type', result.contentType || 'application/octet-stream');
+  res.send(result.body);
+});
+
+app.delete('/api/storage/delete/:key(*)', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const result = await storage.del(req.params.key);
+  if (result.error) return res.status(500).json({ error: result.error });
+  res.json({ deleted: req.params.key });
 });
 
 const PORT = process.env.PORT || 3000;
