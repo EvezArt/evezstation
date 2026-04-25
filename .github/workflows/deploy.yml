@@ -26,7 +26,7 @@ jobs:
 
       - name: Ensure app exists
         run: |
-          flyctl apps create evezstation --org personal 2>/dev/null \
+          flyctl apps create evezstation --org evez 2>/dev/null \
             && echo "App created" \
             || echo "App already exists (or org mismatch — continuing)"
 
