@@ -1,0 +1,24 @@
+# CI/CD
+.github/
+
+# Documentation
+*.md
+LICENSE
+
+# Development
+.git/
+.gitignore
+.env
+.env.*
+node_modules/
+
+# Python (convergence engine is separate)
+*.py
+__pycache__/
+
+# SQL schema (applied via Supabase, not at runtime)
+schema.sql
+
+# Fly config (not needed inside container)
+fly.toml
+.dockerignore
