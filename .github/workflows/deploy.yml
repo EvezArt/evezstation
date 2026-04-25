@@ -24,6 +24,12 @@ jobs:
       - name: Setup Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
 
+      - name: Ensure app exists
+        run: |
+          flyctl apps create evezstation --org personal 2>/dev/null \
+            && echo "App created" \
+            || echo "App already exists (or org mismatch — continuing)"
+
       - name: Inject secrets into Fly
         run: |
           flyctl secrets set \
@@ -34,17 +40,16 @@ jobs:
             AWS_REGION="${{ secrets.AWS_REGION }}" \
             AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
             BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
-            --stage \
-          || echo "::warning::Secret staging failed — app may not exist yet (first deploy uses fly launch)"
+            --stage
 
       - name: Deploy to Fly.io
         run: flyctl deploy --remote-only --strategy rolling --wait-timeout 300
 
       - name: Post-deploy health check
         run: |
-          echo "Waiting 15s for machine to stabilize..."
-          sleep 15
-          MAX_RETRIES=5
+          echo "Waiting 20s for machine to stabilize..."
+          sleep 20
+          MAX_RETRIES=6
           RETRY_DELAY=10
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Health check attempt $i/$MAX_RETRIES..."
