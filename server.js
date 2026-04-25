@@ -5,6 +5,17 @@ import cors from 'cors';
 import { storage } from "./storage.js";
 import { groqChat, GROQ_MODELS } from "./groq.js";
 import { Claw, CLAW_PRESETS } from "./openclaw.js";
+import { Arena, TeamBattle } from "./autoclaw.js";
+import { Swarm, createSwarm } from "./swarm.js";
+import { TemporalQueue } from "./temporal.js";
+import { BattlefieldPlatform } from "./battlefield.js";
+import { enterpriseMiddleware, TIERS } from "./enterprise.js";
+
+// ── Initialize Platform Systems ──
+const { middleware: entMW, audit, usage: usageTracker } = enterpriseMiddleware({ rateLimit: 100 });
+const taskQueue = new TemporalQueue({ concurrency: 10 });
+taskQueue.start();
+const battlefield = new BattlefieldPlatform();
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -1049,6 +1060,333 @@ app.get('/', (req, res) => {
   } catch {
     res.redirect('/docs');
   }
+});
+
+
+// ══════════════════════════════════════════════════════════════
+// ── AutoClaw Arena Routes ──
+// ══════════════════════════════════════════════════════════════
+
+const arenaInstances = new Map();
+
+app.post('/api/arena/create', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { name, evolutionRate, judges } = req.body;
+  const arena = new Arena({ evolutionRate });
+  arenaInstances.set(arena.id, arena);
+  res.status(201).json({ arena_id: arena.id, name: name || 'New Arena' });
+});
+
+app.post('/api/arena/duel', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { clawA, clawB, challenge, criteria } = req.body;
+  if (!challenge) return res.status(400).json({ error: 'challenge required' });
+  
+  const a = CLAW_PRESETS[clawA] ? CLAW_PRESETS[clawA]() : new Claw(clawA || 'ChallengerA');
+  const b = CLAW_PRESETS[clawB] ? CLAW_PRESETS[clawB]() : new Claw(clawB || 'ChallengerB');
+  
+  const arena = new Arena();
+  const result = await arena.duel(a, b, challenge, { criteria });
+  res.json(result);
+});
+
+app.post('/api/arena/tournament', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { participants, challenges } = req.body;
+  if (!participants?.length || !challenges?.length) return res.status(400).json({ error: 'participants and challenges arrays required' });
+  
+  const claws = participants.map(p => CLAW_PRESETS[p] ? CLAW_PRESETS[p]() : new Claw(p));
+  const arena = new Arena();
+  const result = await arena.tournament(claws, challenges);
+  res.json(result);
+});
+
+app.post('/api/arena/evolve', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { participants, challenges, generations } = req.body;
+  if (!participants?.length || !challenges?.length) return res.status(400).json({ error: 'participants and challenges required' });
+  
+  const claws = participants.map(p => CLAW_PRESETS[p] ? CLAW_PRESETS[p]() : new Claw(p));
+  const arena = new Arena();
+  const result = await arena.evolve(claws, challenges, generations || 3);
+  res.json(result);
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── SwarmNet Routes ──
+// ══════════════════════════════════════════════════════════════
+
+const swarmInstances = new Map();
+
+app.post('/api/swarm/create', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { nodes, strategy, redundancy } = req.body;
+  const presets = nodes || ['coder', 'analyst', 'researcher'];
+  const swarm = createSwarm(presets, { strategy, redundancy });
+  swarmInstances.set(swarm.id, swarm);
+  res.status(201).json({ swarm_id: swarm.id, topology: swarm.getTopology() });
+});
+
+app.post('/api/swarm/submit', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { swarm_id, input, specialty, model } = req.body;
+  if (!input) return res.status(400).json({ error: 'input required' });
+  
+  let swarm = swarmInstances.get(swarm_id);
+  if (!swarm) { swarm = createSwarm(['coder', 'analyst', 'researcher', 'writer']); swarmInstances.set(swarm.id, swarm); }
+  
+  const result = await swarm.submit(input, { specialty, model });
+  res.json({ ...result, swarm_id: swarm.id });
+});
+
+app.post('/api/swarm/shard', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { swarm_id, task, shards } = req.body;
+  if (!task) return res.status(400).json({ error: 'task required' });
+  
+  let swarm = swarmInstances.get(swarm_id);
+  if (!swarm) { swarm = createSwarm(['coder', 'analyst', 'researcher', 'writer']); swarmInstances.set(swarm.id, swarm); }
+  
+  const result = await swarm.shard(task, shards);
+  res.json({ ...result, swarm_id: swarm.id });
+});
+
+app.get('/api/swarm/:id/topology', async (req, res) => {
+  const swarm = swarmInstances.get(req.params.id);
+  if (!swarm) return res.status(404).json({ error: 'swarm not found' });
+  res.json(swarm.getTopology());
+});
+
+app.get('/api/swarm/:id/metrics', async (req, res) => {
+  const swarm = swarmInstances.get(req.params.id);
+  if (!swarm) return res.status(404).json({ error: 'swarm not found' });
+  res.json(swarm.getMetrics());
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── Battlefield Routes ──
+// ══════════════════════════════════════════════════════════════
+
+app.post('/api/battlefield/quickmatch', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { domain, players } = req.body;
+  const result = await battlefield.quickMatch(domain || 'reasoning', players || 2);
+  res.json(result);
+});
+
+app.post('/api/battlefield/create', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { name, type, domain, rounds, combatants } = req.body;
+  const battle = battlefield.createBattle({ name, type, domain, rounds });
+  
+  if (combatants) {
+    for (const c of combatants) {
+      if (c.type === 'human') battle.addHumanPlayer(c.name);
+      else {
+        const factory = CLAW_PRESETS[c.preset || c.name];
+        battle.addCombatant(factory ? factory(c.name) : new Claw(c.name || 'Agent'));
+      }
+    }
+  }
+  
+  res.status(201).json({ battle_id: battle.id, name: battle.name, combatants: battle.getStandings() });
+});
+
+app.post('/api/battlefield/:id/round', async (req, res) => {
+  const battle = battlefield.activeBattles.get(req.params.id);
+  if (!battle) return res.status(404).json({ error: 'battle not found' });
+  const { challenges } = req.body;
+  const result = await battle.runRound(challenges || battlefield.challengeBank[battle.domain] || ['Solve this challenge']);
+  res.json(result);
+});
+
+app.get('/api/battlefield/:id/standings', async (req, res) => {
+  const battle = battlefield.activeBattles.get(req.params.id) || battlefield.completedBattles.find(b => b.battleId === req.params.id);
+  if (!battle) return res.status(404).json({ error: 'battle not found' });
+  res.json(battle.standings || battle.getStandings());
+});
+
+app.get('/api/battlefield/leaderboard', async (req, res) => {
+  const { type, domain, tier, minBattles } = req.query;
+  const rankings = battlefield.leaderboard.getRankings({ type, domain, tier, minBattles: parseInt(minBattles) || 0 });
+  res.json({ rankings, totalPlayers: battlefield.leaderboard.players.size });
+});
+
+app.get('/api/battlefield/stats', (req, res) => {
+  res.json(battlefield.getStats());
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── TemporalQ Task Routes ──
+// ══════════════════════════════════════════════════════════════
+
+app.post('/api/tasks/submit', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { name, input, priority, dependencies, scheduledFor } = req.body;
+  
+  const id = taskQueue.submit({
+    name: name || 'api_task',
+    input,
+    priority,
+    dependencies,
+    scheduledFor: scheduledFor ? new Date(scheduledFor).getTime() : null,
+    fn: async (taskInput) => {
+      const claw = new Claw('TaskWorker', { model: 'fast' });
+      return claw.think(typeof taskInput === 'string' ? taskInput : JSON.stringify(taskInput));
+    }
+  });
+  
+  res.status(201).json({ task_id: id });
+});
+
+app.post('/api/tasks/chain', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { tasks } = req.body;
+  if (!tasks?.length) return res.status(400).json({ error: 'tasks array required' });
+  
+  const ids = taskQueue.submitChain(tasks.map(t => ({
+    name: t.name || 'chain_task',
+    input: t.input,
+    priority: t.priority,
+    fn: async (taskInput) => {
+      const claw = new Claw('ChainWorker', { model: t.model || 'fast' });
+      return claw.think(typeof taskInput === 'string' ? taskInput : JSON.stringify(taskInput));
+    }
+  })));
+  
+  res.status(201).json({ task_ids: ids, chain_length: ids.length });
+});
+
+app.get('/api/tasks/:id', (req, res) => {
+  const status = taskQueue.getStatus(req.params.id);
+  if (!status) return res.status(404).json({ error: 'task not found' });
+  res.json(status);
+});
+
+app.get('/api/tasks/metrics/all', (req, res) => {
+  res.json(taskQueue.getMetrics());
+});
+
+app.post('/api/tasks/:id/revive', (req, res) => {
+  const id = taskQueue.revive(req.params.id);
+  if (!id) return res.status(404).json({ error: 'task not found in dead letter queue' });
+  res.json({ revived: id });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── Enterprise Routes ──
+// ══════════════════════════════════════════════════════════════
+
+app.get('/api/enterprise/tiers', (req, res) => {
+  res.json({ tiers: TIERS });
+});
+
+app.get('/api/enterprise/audit', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { action, since, until, limit } = req.query;
+  const entries = audit.query({ apiKeyId: r.key, action, since, until, limit: parseInt(limit) || 50 });
+  res.json({ entries, total: entries.length });
+});
+
+app.get('/api/enterprise/usage', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const u = usageTracker.getUsage(r.key);
+  const tier = Object.values(TIERS).find(t => u.calls <= t.callsPerMonth) || TIERS.enterprise;
+  res.json({ usage: u, tier: tier.name, limits: tier });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── System Metrics (Enhanced) ──
+// ══════════════════════════════════════════════════════════════
+
+app.get('/api/system/metrics', (req, res) => {
+  res.json({
+    platform: 'EVEZ Station',
+    version: '2.0.0',
+    uptime_seconds: Math.floor(process.uptime()),
+    memory_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    active_swarms: swarmInstances.size,
+    active_arenas: arenaInstances.size,
+    active_battles: battlefield.activeBattles.size,
+    completed_battles: battlefield.completedBattles.length,
+    leaderboard_players: battlefield.leaderboard.players.size,
+    task_queue: taskQueue.getMetrics(),
+    total_calls: audit.entries.length
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── API Documentation ──
+// ══════════════════════════════════════════════════════════════
+
+app.get('/docs', (req, res) => {
+  res.json({
+    name: 'EVEZ Station API',
+    version: '2.0.0',
+    description: 'Self-evolving AI platform with autonomous agents, competitive arenas, and swarm intelligence',
+    endpoints: {
+      core: {
+        'GET /api/health': 'Health check',
+        'GET /api/system/metrics': 'Platform metrics',
+        'GET /docs': 'This documentation'
+      },
+      claw: {
+        'POST /api/claw/create': 'Create a new OpenClaw agent',
+        'POST /api/claw/think': 'Send input to a claw for processing',
+        'POST /api/claw/compose': 'Orchestrate multiple claws on a task',
+        'GET /api/claw/list': 'List your claws'
+      },
+      groq: {
+        'POST /api/groq/chat': 'Direct Groq LLM inference',
+        'GET /api/groq/models': 'Available models'
+      },
+      arena: {
+        'POST /api/arena/duel': 'Run a 1v1 duel between claws',
+        'POST /api/arena/tournament': 'Run a tournament bracket',
+        'POST /api/arena/evolve': 'Evolve claws through competitive generations'
+      },
+      swarm: {
+        'POST /api/swarm/create': 'Create a distributed agent swarm',
+        'POST /api/swarm/submit': 'Submit task to swarm',
+        'POST /api/swarm/shard': 'Shard a large task across the swarm',
+        'GET /api/swarm/:id/topology': 'View swarm topology',
+        'GET /api/swarm/:id/metrics': 'Swarm performance metrics'
+      },
+      battlefield: {
+        'POST /api/battlefield/quickmatch': 'Instant competitive match',
+        'POST /api/battlefield/create': 'Create custom battle (human+AI)',
+        'POST /api/battlefield/:id/round': 'Execute a battle round',
+        'GET /api/battlefield/:id/standings': 'Battle standings',
+        'GET /api/battlefield/leaderboard': 'Global leaderboard (humans+AI)',
+        'GET /api/battlefield/stats': 'Platform-wide battle stats'
+      },
+      tasks: {
+        'POST /api/tasks/submit': 'Submit async task',
+        'POST /api/tasks/chain': 'Submit chained task sequence',
+        'GET /api/tasks/:id': 'Get task status',
+        'GET /api/tasks/metrics/all': 'Task queue metrics',
+        'POST /api/tasks/:id/revive': 'Revive dead-letter task'
+      },
+      enterprise: {
+        'GET /api/enterprise/tiers': 'Pricing tiers',
+        'GET /api/enterprise/audit': 'Audit log',
+        'GET /api/enterprise/usage': 'Usage stats'
+      },
+      storage: {
+        'POST /api/storage/upload': 'Upload to Tigris S3',
+        'GET /api/storage/list': 'List objects',
+        'GET /api/storage/get/:key': 'Download object',
+        'DELETE /api/storage/delete/:key': 'Delete object'
+      },
+      training: {
+        'POST /api/train/pairs': 'Store training pair',
+        'GET /api/train/pairs': 'List training pairs',
+        'POST /api/train/datasets': 'Create training dataset',
+        'POST /api/train/finetune': 'Start fine-tune job',
+        'POST /api/train/forges': 'Create auto-training forge'
+      }
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3000;
