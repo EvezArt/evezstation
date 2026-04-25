@@ -1,129 +1,130 @@
--- EVEZ Station Training Engine Schema
--- Every API call generates training pairs. The platform trains on itself.
+-- EVEZ Station Full Schema
+-- Self-training AI platform with OpenClaw agents
 
 CREATE SCHEMA IF NOT EXISTS evezstation;
 
--- Master API keys (unified across all services)
-CREATE TABLE evezstation.api_keys (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  key_hash TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  owner_email TEXT,
-  tier TEXT DEFAULT 'free' CHECK (tier IN ('free', 'pro', 'enterprise')),
-  is_active BOOLEAN DEFAULT true,
-  monthly_quota INTEGER DEFAULT 10000,
-  requests_this_month INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Training data collection: every API call becomes a training pair
-CREATE TABLE evezstation.training_pairs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  api_key_id UUID REFERENCES evezstation.api_keys(id),
-  service TEXT NOT NULL, -- octoklaw, meshpulse, quantumseal, etc
+-- Training pairs from every API call
+CREATE TABLE IF NOT EXISTS evezstation.training_pairs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID NOT NULL,
+  service TEXT NOT NULL,
   endpoint TEXT NOT NULL,
-  input_data JSONB NOT NULL,
-  output_data JSONB NOT NULL,
-  quality_score REAL DEFAULT 1.0,
-  is_validated BOOLEAN DEFAULT false,
+  input_data JSONB NOT NULL DEFAULT '{}',
+  output_data JSONB NOT NULL DEFAULT '{}',
+  quality_score NUMERIC(4,3) DEFAULT 0.5,
   tokens_in INTEGER DEFAULT 0,
   tokens_out INTEGER DEFAULT 0,
   latency_ms INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_tp_service ON evezstation.training_pairs(service);
-CREATE INDEX idx_tp_created ON evezstation.training_pairs(created_at DESC);
-CREATE INDEX idx_tp_quality ON evezstation.training_pairs(quality_score DESC);
 
--- Datasets: curated collections of training pairs
-CREATE TABLE evezstation.datasets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  api_key_id UUID REFERENCES evezstation.api_keys(id),
+-- Curated training datasets
+CREATE TABLE IF NOT EXISTS evezstation.datasets (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID NOT NULL,
   name TEXT NOT NULL,
-  description TEXT,
-  service_filter TEXT, -- null = all services
-  min_quality REAL DEFAULT 0.5,
   pair_count INTEGER DEFAULT 0,
-  total_tokens INTEGER DEFAULT 0,
-  format TEXT DEFAULT 'jsonl' CHECK (format IN ('jsonl', 'csv', 'parquet', 'alpaca', 'sharegpt', 'openai')),
-  status TEXT DEFAULT 'building' CHECK (status IN ('building', 'ready', 'exporting', 'archived')),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  format TEXT DEFAULT 'jsonl',
+  service_filter TEXT,
+  min_quality NUMERIC(4,3) DEFAULT 0.5,
+  status TEXT DEFAULT 'ready',
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Fine-tune jobs
-CREATE TABLE evezstation.finetune_jobs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  api_key_id UUID REFERENCES evezstation.api_keys(id),
+-- Fine-tuning jobs
+CREATE TABLE IF NOT EXISTS evezstation.finetune_jobs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID NOT NULL,
   dataset_id UUID REFERENCES evezstation.datasets(id),
-  base_model TEXT NOT NULL DEFAULT 'evez-base-v1',
-  target_model TEXT,
-  config JSONB DEFAULT '{}',
-  status TEXT DEFAULT 'queued' CHECK (status IN ('queued', 'preparing', 'training', 'completed', 'failed', 'cancelled')),
+  base_model TEXT NOT NULL DEFAULT 'llama-3.3-70b-versatile',
   epochs INTEGER DEFAULT 3,
-  learning_rate REAL DEFAULT 2e-5,
-  batch_size INTEGER DEFAULT 8,
-  progress REAL DEFAULT 0,
+  status TEXT DEFAULT 'queued',
   metrics JSONB DEFAULT '{}',
-  error_message TEXT,
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Model registry
-CREATE TABLE evezstation.models (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  api_key_id UUID REFERENCES evezstation.api_keys(id),
+-- Registered models
+CREATE TABLE IF NOT EXISTS evezstation.models (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID NOT NULL,
   name TEXT NOT NULL,
-  base_model TEXT NOT NULL,
+  base_model TEXT,
   finetune_job_id UUID REFERENCES evezstation.finetune_jobs(id),
-  version INTEGER DEFAULT 1,
-  parameters JSONB DEFAULT '{}',
-  metrics JSONB DEFAULT '{}',
-  training_pairs_count INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'archived', 'deploying')),
-  inference_count INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
+  status TEXT DEFAULT 'active',
+  inference_count BIGINT DEFAULT 0,
+  avg_latency_ms INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Inference logs
-CREATE TABLE evezstation.inference_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  api_key_id UUID REFERENCES evezstation.api_keys(id),
-  model_id UUID REFERENCES evezstation.models(id),
-  input_data JSONB NOT NULL,
-  output_data JSONB,
+-- Training forges (auto-training pipelines)
+CREATE TABLE IF NOT EXISTS evezstation.forges (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID NOT NULL,
+  name TEXT NOT NULL,
+  service_filter TEXT,
+  threshold INTEGER DEFAULT 1000,
+  base_model TEXT DEFAULT 'llama-3.3-70b-versatile',
+  auto_deploy BOOLEAN DEFAULT FALSE,
+  last_triggered_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- OpenClaw agents
+CREATE TABLE IF NOT EXISTS evezstation.claws (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT DEFAULT 'general',
+  model_preset TEXT DEFAULT 'fast',
+  system_prompt TEXT,
+  memory JSONB DEFAULT '[]',
+  tools JSONB DEFAULT '[]',
+  total_interactions BIGINT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Claw interaction log
+CREATE TABLE IF NOT EXISTS evezstation.claw_interactions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  claw_id UUID REFERENCES evezstation.claws(id),
+  api_key_id UUID NOT NULL,
+  input_text TEXT,
+  output_text TEXT,
+  model_used TEXT,
+  tokens_used INTEGER DEFAULT 0,
+  latency_ms INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Storage objects metadata
+CREATE TABLE IF NOT EXISTS evezstation.storage_objects (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID NOT NULL,
+  key TEXT NOT NULL,
+  content_type TEXT DEFAULT 'application/octet-stream',
+  size_bytes BIGINT DEFAULT 0,
+  bucket TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- API usage tracking for billing
+CREATE TABLE IF NOT EXISTS evezstation.usage_log (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID NOT NULL,
+  endpoint TEXT NOT NULL,
+  method TEXT DEFAULT 'GET',
+  status_code INTEGER,
   latency_ms INTEGER,
   tokens_used INTEGER DEFAULT 0,
-  feedback_score REAL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE INDEX idx_il_model ON evezstation.inference_logs(model_id);
-CREATE INDEX idx_il_created ON evezstation.inference_logs(created_at DESC);
-
--- Forges: automated training pipelines
-CREATE TABLE evezstation.forges (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  api_key_id UUID REFERENCES evezstation.api_keys(id),
-  name TEXT NOT NULL,
-  description TEXT,
-  trigger_type TEXT DEFAULT 'threshold' CHECK (trigger_type IN ('threshold', 'cron', 'manual')),
-  trigger_config JSONB DEFAULT '{}',
-  service_filter TEXT,
-  min_pairs INTEGER DEFAULT 1000,
-  auto_deploy BOOLEAN DEFAULT true,
-  last_run_at TIMESTAMPTZ,
-  total_runs INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed')),
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- System metrics
-CREATE TABLE evezstation.system_metrics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  metric_type TEXT NOT NULL,
-  value JSONB NOT NULL,
-  recorded_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE INDEX idx_sm_type ON evezstation.system_metrics(metric_type, recorded_at DESC);
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_training_pairs_service ON evezstation.training_pairs(service);
+CREATE INDEX IF NOT EXISTS idx_training_pairs_quality ON evezstation.training_pairs(quality_score);
+CREATE INDEX IF NOT EXISTS idx_claws_api_key ON evezstation.claws(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_usage_api_key ON evezstation.usage_log(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_usage_created ON evezstation.usage_log(created_at);

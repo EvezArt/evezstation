@@ -3,6 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import { createHash, randomBytes } from 'crypto';
 import cors from 'cors';
 import { storage } from "./storage.js";
+import { groqChat, GROQ_MODELS } from "./groq.js";
+import { Claw, CLAW_PRESETS } from "./openclaw.js";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -921,6 +929,126 @@ app.delete('/api/storage/delete/:key(*)', async (req, res) => {
   const result = await storage.del(req.params.key);
   if (result.error) return res.status(500).json({ error: result.error });
   res.json({ deleted: req.params.key });
+});
+
+
+// ── OpenClaw Agent Routes ──
+const clawInstances = new Map();
+
+// Create or get a claw
+app.post('/api/claw/create', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { name, role, model, systemPrompt } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  
+  const preset = CLAW_PRESETS[role];
+  const claw = preset ? preset(name) : new Claw(name, { role, model, systemPrompt });
+  
+  // Persist to Supabase
+  const { data, error } = await supabase.schema('evezstation').from('claws').insert({
+    api_key_id: r.id, name: claw.name, role: claw.role, model_preset: claw.model,
+    system_prompt: claw.systemPrompt, memory: claw.memory, tools: claw.tools
+  }).select().single();
+  
+  if (error) return res.status(500).json({ error: error.message });
+  clawInstances.set(data.id, claw);
+  res.status(201).json({ claw_id: data.id, name, role: claw.role, model: claw.model });
+});
+
+// Think with a claw
+app.post('/api/claw/think', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { claw_id, claw: presetName, input } = req.body;
+  if (!input) return res.status(400).json({ error: 'input required' });
+  
+  let claw;
+  if (claw_id) {
+    claw = clawInstances.get(claw_id);
+    if (!claw) {
+      const { data } = await supabase.schema('evezstation').from('claws').select('*').eq('id', claw_id).eq('api_key_id', r.id).single();
+      if (!data) return res.status(404).json({ error: 'claw not found' });
+      claw = Claw.deserialize(data);
+      clawInstances.set(claw_id, claw);
+    }
+  } else if (presetName && CLAW_PRESETS[presetName]) {
+    claw = CLAW_PRESETS[presetName]();
+  } else {
+    claw = new Claw('QuickClaw', { model: req.body.model || 'fast' });
+  }
+  
+  const start = Date.now();
+  const result = await claw.think(input);
+  const latency = Date.now() - start;
+  
+  // Log interaction
+  if (claw_id) {
+    await supabase.schema('evezstation').from('claw_interactions').insert({
+      claw_id, api_key_id: r.id, input_text: input, output_text: result.response,
+      model_used: result.model, tokens_used: (result.usage?.total_tokens || 0), latency_ms: latency
+    });
+    await supabase.schema('evezstation').from('claws').update({ memory: claw.memory, total_interactions: claw.memory.length / 2, updated_at: new Date().toISOString() }).eq('id', claw_id);
+  }
+  
+  res.json({ ...result, latency_ms: latency });
+});
+
+// List claws
+app.get('/api/claw/list', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { data } = await supabase.schema('evezstation').from('claws').select('id, name, role, model_preset, total_interactions, created_at, updated_at').eq('api_key_id', r.id).order('updated_at', { ascending: false });
+  res.json({ claws: data || [], presets: Object.keys(CLAW_PRESETS) });
+});
+
+// Compose multiple claws
+app.post('/api/claw/compose', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { claws: clawNames, task } = req.body;
+  if (!clawNames?.length || !task) return res.status(400).json({ error: 'claws array and task required' });
+  
+  const orchestra = clawNames.map(name => CLAW_PRESETS[name] ? CLAW_PRESETS[name]() : new Claw(name));
+  const conductor = new Claw('Conductor', { model: 'reasoning' });
+  const result = await conductor.compose(orchestra, task);
+  
+  res.json(result);
+});
+
+// ── Groq Direct Inference ──
+app.post('/api/groq/chat', async (req, res) => {
+  const { r, e } = await auth(req); if (e) return res.status(e.s).json(e.b);
+  const { messages, model, preset, temperature, max_tokens } = req.body;
+  if (!messages?.length) return res.status(400).json({ error: 'messages array required' });
+  
+  const start = Date.now();
+  const result = await groqChat(messages, { model, preset, temperature, max_tokens });
+  const latency = Date.now() - start;
+  
+  res.json({ ...result, latency_ms: latency, available_models: GROQ_MODELS });
+});
+
+app.get('/api/groq/models', (req, res) => {
+  res.json({ models: GROQ_MODELS, provider: 'groq', note: 'All models available via /api/groq/chat or /api/claw/think' });
+});
+
+// ── Landing Page ──
+app.get('/', (req, res) => {
+  const ua = req.headers['user-agent'] || '';
+  if (ua.includes('curl') || ua.includes('wget') || req.headers.accept?.includes('application/json')) {
+    return res.json({
+      name: 'EVEZ Station',
+      version: '2.0.0',
+      description: 'Self-evolving API platform with OpenClaw agents and Groq inference',
+      docs: '/docs',
+      health: '/api/health',
+      endpoints: { claw: '/api/claw/*', groq: '/api/groq/*', training: '/api/train/*', storage: '/api/storage/*', jobs: '/api/jobs/*' }
+    });
+  }
+  try {
+    const html = readFileSync(join(__dirname, 'public', 'index.html'), 'utf-8');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch {
+    res.redirect('/docs');
+  }
 });
 
 const PORT = process.env.PORT || 3000;
