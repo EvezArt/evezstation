@@ -30,7 +30,7 @@ app.use(cors({ origin: '*' }));
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vziaqxquzohqskesuxgz.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const BASE_URL = process.env.BASE_URL || 'https://evezstation.fly.dev';
+const BASE_URL = process.env.BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://evezstation.vercel.app';
 
 // ═══════════════════════════════════════════════════════════════
 // EVEZ STATION — Universal AI Workstation
@@ -1390,7 +1390,23 @@ app.get('/docs', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => console.log(`⚡ EVEZ Station running on :${PORT}`));
+// Vercel serverless: export the app; Fly/Docker: listen on PORT
+if (process.env.VERCEL) {
+  // Vercel handles routing — no listen needed
+} else {
+  const server = app.listen(PORT, () => console.log(`⚡ EVEZ Station running on :${PORT}`));
+  
+  function shutdown(signal) {
+    console.log(`\n🛑 ${signal} received. Shutting down...`);
+    taskQueue.stop();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 5000);
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+export default app;
 
 // ── Graceful shutdown (Fly.io sends SIGTERM before stopping machines) ──
 const shutdown = (signal) => {
