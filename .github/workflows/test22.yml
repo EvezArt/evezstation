@@ -1,7 +1,0 @@
-name: Test22
-on: workflow_dispatch
-jobs:
-  test:
-    runs-on: ubuntu-22.04
-    steps:
-      - run: echo "Test ubuntu-22.04"
