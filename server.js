@@ -10,6 +10,9 @@ import { Swarm, createSwarm } from "./swarm.js";
 import { TemporalQueue } from "./temporal.js";
 import { BattlefieldPlatform } from "./battlefield.js";
 import { enterpriseMiddleware, TIERS } from "./enterprise.js";
+import { makeInferenceLogger } from './inference-loop.js';
+import { safe, errorBoundary } from './middleware.js';
+import { registerBillingRoutes, checkQuota } from './billing.js';
 
 // ── Initialize Platform Systems ──
 const { middleware: entMW, audit, usage: usageTracker } = enterpriseMiddleware({ rateLimit: 100 });
@@ -594,6 +597,12 @@ app.use('/api/links', collectTrainingData('nexuslink', '/links'));
 app.use('/api/scan', collectTrainingData('spectrumscan', '/scan'));
 app.use('/api/compare', collectTrainingData('spectrumscan', '/compare'));
 app.use('/api/jobs', collectTrainingData('vortexq', '/jobs'));
+
+// ── Billing quota enforcement ──
+registerBillingRoutes(app, supabase);
+
+// ── Inference logger (training loop) ──
+app.use('/api/inference', makeInferenceLogger(supabase));
 
 // ── Training Data Endpoints ──
 
@@ -1406,24 +1415,12 @@ if (process.env.VERCEL) {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
+
+// Error boundary — catches unhandled route errors
+app.use(errorBoundary);
+
 export default app;
 
-// ── Graceful shutdown (Fly.io sends SIGTERM before stopping machines) ──
-const shutdown = (signal) => {
-  console.log(`\n🛑 ${signal} received — shutting down gracefully...`);
-  server.close(() => {
-    console.log('✅ HTTP server closed. Exiting.');
-    process.exit(0);
-  });
-  // Force exit after 10s if connections don't drain
-  setTimeout(() => {
-    console.error('⚠️  Forced shutdown after 10s timeout');
-    process.exit(1);
-  }, 10_000).unref();
-};
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Catch unhandled errors so the process doesn't silently die
 process.on('unhandledRejection', (reason) => {
@@ -1431,5 +1428,5 @@ process.on('unhandledRejection', (reason) => {
 });
 process.on('uncaughtException', (err) => {
   console.error('❌ Uncaught exception:', err);
-  shutdown('uncaughtException');
+  process.exit(1);
 });
