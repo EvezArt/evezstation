@@ -12,7 +12,18 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Set Fly secrets (idempotent)
+      - name: Create Fly app if it doesn't exist
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if flyctl status --app evezstation 2>/dev/null; then
+            echo "App exists — skipping create"
+          else
+            echo "Creating app evezstation in org evez..."
+            flyctl apps create evezstation --org evez
+          fi
+
+      - name: Push secrets to Fly
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -22,9 +33,10 @@ jobs:
             SUPABASE_URL="$SUPABASE_URL" \
             SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
             NODE_ENV=production \
-            --app evezstation 2>/dev/null || echo "Secrets may already be set or app not yet created"
+            BASE_URL=https://evezstation.fly.dev \
+            --app evezstation 2>/dev/null || echo "Secrets already set"
 
       - name: Deploy
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --app evezstation
+        run: flyctl deploy --remote-only --app evezstation --wait-timeout 180

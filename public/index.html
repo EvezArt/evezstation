@@ -1,219 +1,467 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EVEZ Station — The Self-Evolving API Platform</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EVEZ Station — Universal AI Workstation</title>
+  <meta name="description" content="6 production-ready APIs in one place. Plug into ChatGPT, Claude, or any AI system in under 60 seconds." />
   <style>
-    :root { --bg: #0a0a0f; --surface: #12121a; --border: #1e1e2e; --accent: #7c3aed; --accent2: #06b6d4; --text: #e4e4e7; --dim: #71717a; --glow: rgba(124,58,237,0.3); }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; line-height: 1.6; overflow-x: hidden; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
-    
-    /* Hero */
-    .hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; position: relative; }
-    .hero::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 30% 50%, rgba(124,58,237,0.08) 0%, transparent 50%), radial-gradient(circle at 70% 30%, rgba(6,182,212,0.06) 0%, transparent 50%); animation: pulse 8s ease-in-out infinite alternate; }
-    @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
-    .hero h1 { font-size: clamp(3rem, 8vw, 6rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; background: linear-gradient(135deg, var(--text) 0%, var(--accent) 50%, var(--accent2) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; position: relative; }
-    .hero .sub { font-size: 1.25rem; color: var(--dim); max-width: 600px; margin-top: 1.5rem; position: relative; }
-    .hero .cta-row { display: flex; gap: 1rem; margin-top: 2.5rem; position: relative; flex-wrap: wrap; }
-    .btn { padding: 0.875rem 2rem; border-radius: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; }
-    .btn-primary { background: var(--accent); color: white; box-shadow: 0 0 30px var(--glow); }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 50px var(--glow); }
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --accent: #6c63ff;
+      --accent2: #00d4aa;
+      --text: #e2e2f0;
+      --muted: #6b6b8a;
+      --green: #00d4aa;
+      --yellow: #ffd700;
+      --red: #ff4757;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* NAV */
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: rgba(10,10,15,0.95); backdrop-filter: blur(10px); z-index: 100;
+    }
+    .logo { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
+    .logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; font-size: 0.9rem; }
+    .nav-links a { color: var(--muted); }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .btn { padding: 0.45rem 1.1rem; border-radius: 6px; font-size: 0.88rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #7c74ff; text-decoration: none; }
     .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
-    .btn-outline:hover { border-color: var(--accent); background: rgba(124,58,237,0.1); }
-    
-    /* Stats bar */
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; padding: 3rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 2rem 0; }
-    .stat { text-align: center; }
-    .stat .num { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .stat .label { color: var(--dim); font-size: 0.875rem; margin-top: 0.25rem; }
-    
-    /* Features */
-    .features { padding: 6rem 0; }
-    .features h2 { font-size: 2.5rem; font-weight: 700; text-align: center; margin-bottom: 4rem; }
-    .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; }
-    .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; transition: all 0.3s; }
-    .feature-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
-    .feature-card .icon { font-size: 2rem; margin-bottom: 1rem; }
-    .feature-card h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
-    .feature-card p { color: var(--dim); font-size: 0.95rem; }
-    
-    /* Code block */
-    .code-section { padding: 4rem 0; }
-    .code-block { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; overflow-x: auto; position: relative; }
-    .code-block .lang { position: absolute; top: 1rem; right: 1rem; color: var(--accent); font-size: 0.75rem; }
-    .code-block pre { color: var(--dim); }
-    .code-block .keyword { color: var(--accent); }
-    .code-block .string { color: #4ade80; }
-    .code-block .comment { color: #525270; }
-    
-    /* Pricing */
-    .pricing { padding: 6rem 0; }
-    .pricing h2 { font-size: 2.5rem; font-weight: 700; text-align: center; margin-bottom: 1rem; }
-    .pricing .sub { text-align: center; color: var(--dim); margin-bottom: 4rem; }
-    .price-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
-    .price-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2.5rem; }
-    .price-card.featured { border-color: var(--accent); box-shadow: 0 0 40px var(--glow); position: relative; }
-    .price-card.featured::before { content: 'MOST POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--accent); color: white; padding: 0.25rem 1rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
-    .price-card .tier { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem; }
-    .price-card .price { font-size: 3rem; font-weight: 800; }
-    .price-card .price span { font-size: 1rem; color: var(--dim); font-weight: 400; }
-    .price-card ul { list-style: none; margin: 1.5rem 0; }
-    .price-card li { padding: 0.5rem 0; color: var(--dim); display: flex; align-items: center; gap: 0.5rem; }
-    .price-card li::before { content: '✓'; color: var(--accent2); font-weight: bold; }
-    
-    /* Footer */
-    footer { border-top: 1px solid var(--border); padding: 3rem 0; text-align: center; color: var(--dim); font-size: 0.875rem; }
-    footer a { color: var(--accent); text-decoration: none; }
-    
-    /* Terminal animation */
-    .terminal { background: #0d0d12; border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.5rem; font-family: monospace; margin: 2rem 0; }
-    .terminal .prompt { color: var(--accent2); }
-    .terminal .output { color: var(--dim); }
-    .terminal .success { color: #4ade80; }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    /* HERO */
+    .hero { text-align: center; padding: 5rem 2rem 4rem; max-width: 860px; margin: 0 auto; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: rgba(108,99,255,0.12); border: 1px solid rgba(108,99,255,0.3);
+      color: var(--accent); padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.78rem;
+      font-weight: 600; margin-bottom: 1.5rem; letter-spacing: 0.3px;
+    }
+    .hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 800; letter-spacing: -1px; line-height: 1.15; margin-bottom: 1.2rem; }
+    .hero h1 span { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero p { font-size: 1.1rem; color: var(--muted); max-width: 580px; margin: 0 auto 2.5rem; }
+    .hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    /* QUICK START */
+    .quickstart {
+      max-width: 760px; margin: 0 auto 5rem; padding: 0 1.5rem;
+    }
+    .quickstart-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    }
+    .qs-tabs { display: flex; border-bottom: 1px solid var(--border); }
+    .qs-tab {
+      padding: 0.75rem 1.25rem; font-size: 0.82rem; font-weight: 600; color: var(--muted);
+      cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s;
+    }
+    .qs-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .qs-body { padding: 1.25rem 1.5rem; }
+    pre.code {
+      background: #0d0d14; border: 1px solid var(--border); border-radius: 8px;
+      padding: 1.1rem 1.3rem; font-size: 0.82rem; overflow-x: auto; line-height: 1.7;
+      font-family: 'Fira Code', 'Cascadia Code', monospace; color: #b8b8d0;
+    }
+    .code .c { color: var(--muted); }
+    .code .k { color: var(--accent); }
+    .code .s { color: var(--accent2); }
+    .code .n { color: #ffd700; }
+    .copy-btn {
+      display: block; margin-top: 0.6rem; text-align: right;
+      font-size: 0.75rem; color: var(--muted); cursor: pointer; background: none; border: none;
+    }
+    .copy-btn:hover { color: var(--text); }
+    .qs-result {
+      margin-top: 1rem; padding: 0.9rem 1.1rem; background: rgba(0,212,170,0.06);
+      border: 1px solid rgba(0,212,170,0.2); border-radius: 8px; font-size: 0.82rem; font-family: monospace; color: var(--accent2);
+    }
+
+    /* SERVICES */
+    .section { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 5rem; }
+    .section-header { text-align: center; margin-bottom: 3rem; }
+    .section-header h2 { font-size: 1.9rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .section-header p { color: var(--muted); font-size: 1rem; }
+    .services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 1.2rem; }
+    .service-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.5rem; transition: border-color 0.15s, transform 0.15s;
+    }
+    .service-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .service-icon { font-size: 1.6rem; margin-bottom: 0.8rem; }
+    .service-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem; }
+    .service-desc { color: var(--muted); font-size: 0.88rem; margin-bottom: 1rem; }
+    .service-endpoints { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    .endpoint-tag {
+      background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.2);
+      color: var(--accent); padding: 0.18rem 0.55rem; border-radius: 4px; font-size: 0.72rem; font-family: monospace;
+    }
+    .service-price { font-size: 0.82rem; color: var(--muted); }
+    .service-price strong { color: var(--accent2); }
+
+    /* PRICING */
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.2rem; }
+    .pricing-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.8rem;
+    }
+    .pricing-card.featured { border-color: var(--accent); position: relative; }
+    .featured-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; font-size: 0.7rem; font-weight: 700;
+      padding: 0.2rem 0.8rem; border-radius: 20px; letter-spacing: 0.5px;
+    }
+    .plan-name { font-weight: 700; margin-bottom: 0.4rem; }
+    .plan-price { font-size: 2rem; font-weight: 800; margin-bottom: 1rem; }
+    .plan-price span { font-size: 0.9rem; font-weight: 400; color: var(--muted); }
+    .plan-features { list-style: none; font-size: 0.88rem; color: var(--muted); }
+    .plan-features li { padding: 0.3rem 0; display: flex; align-items: center; gap: 0.5rem; }
+    .plan-features li::before { content: "✓"; color: var(--green); font-weight: 700; }
+    .plan-features li.no::before { content: "✕"; color: var(--red); }
+
+    /* STATUS BAR */
+    .status-bar {
+      background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      padding: 0.9rem 2rem; display: flex; align-items: center; gap: 2rem; font-size: 0.82rem;
+      overflow-x: auto; margin-bottom: 4rem;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 0.35rem; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .status-item { display: flex; align-items: center; white-space: nowrap; color: var(--muted); }
+    .status-item strong { color: var(--text); margin-left: 0.3rem; }
+
+    /* FOOTER */
+    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; font-size: 0.82rem; color: var(--muted); }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--text); }
+
+    /* KEY FORM */
+    .key-form { max-width: 520px; margin: 0 auto 5rem; padding: 0 1.5rem; text-align: center; }
+    .key-form h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .key-form p { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .form-row { display: flex; gap: 0.6rem; }
+    .form-row input {
+      flex: 1; padding: 0.65rem 1rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 0.9rem; outline: none;
+    }
+    .form-row input:focus { border-color: var(--accent); }
+    #key-result {
+      margin-top: 1.2rem; padding: 1rem 1.2rem; background: rgba(0,212,170,0.08);
+      border: 1px solid rgba(0,212,170,0.25); border-radius: 8px; text-align: left; display: none;
+    }
+    #key-result .key-value { font-family: monospace; font-size: 0.85rem; color: var(--accent2); word-break: break-all; }
+    #key-result .key-hint { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; }
+    #key-error { margin-top: 0.8rem; font-size: 0.85rem; color: var(--red); display: none; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <section class="hero">
-      <h1>EVEZ Station</h1>
-      <p class="sub">The self-evolving API platform. Every call trains the model. Every model improves the next call. Deploy autonomous AI agents that learn, compose, and compete.</p>
-      <div class="cta-row">
-        <a href="/docs" class="btn btn-primary">📡 Explore API</a>
-        <a href="/api/health" class="btn btn-outline">View Status</a>
-      </div>
-    </section>
 
-    <div class="stats">
-      <div class="stat"><div class="num" id="stat-calls">0</div><div class="label">API Calls Processed</div></div>
-      <div class="stat"><div class="num" id="stat-models">5+</div><div class="label">Groq LLM Models</div></div>
-      <div class="stat"><div class="num" id="stat-agents">∞</div><div class="label">OpenClaw Agents</div></div>
-      <div class="stat"><div class="num" id="stat-speed">&lt;100ms</div><div class="label">Avg Response Time</div></div>
-    </div>
-
-    <section class="features">
-      <h2>Built Different</h2>
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="icon">🧬</div>
-          <h3>Self-Training Engine</h3>
-          <p>Every API call generates training pairs. The platform literally gets smarter with each request. Create datasets, fine-tune models, deploy — all from one API.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">🦀</div>
-          <h3>OpenClaw Agents</h3>
-          <p>Autonomous AI agents that learn, compose, and delegate. Each Claw specializes — coding, analysis, research, content — then orchestrates together for complex tasks.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">⚡</div>
-          <h3>Groq-Powered Inference</h3>
-          <p>Sub-100ms inference via Groq's LPU. Llama 3.3 70B, DeepSeek R1, Qwen — pick your model. Fastest AI inference on the planet, built into every endpoint.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">🔮</div>
-          <h3>VortexQ Job System</h3>
-          <p>Priority-based async job queue with dead-letter recovery. Submit, monitor, and chain complex AI workflows. Built for production at any scale.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">🏗️</div>
-          <h3>Tigris Object Storage</h3>
-          <p>S3-compatible global edge storage for datasets, models, and artifacts. Upload, retrieve, and manage training data with zero config.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">🛡️</div>
-          <h3>API Key Management</h3>
-          <p>Create, scope, rotate, and audit API keys. Per-key rate limits, usage tracking, and automatic security. Enterprise-grade from day one.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="code-section">
-      <div class="terminal">
-        <div><span class="prompt">$</span> curl -X POST https://evezstation.fly.dev/api/claw/think \</div>
-        <div>&nbsp;&nbsp;-H "x-api-key: YOUR_KEY" \</div>
-        <div>&nbsp;&nbsp;-d '{"claw": "analyst", "input": "Analyze market trends for AI infrastructure"}'</div>
-        <div class="output" style="margin-top:1rem">
-{<br>
-&nbsp;&nbsp;"response": "Based on current market data...",<br>
-&nbsp;&nbsp;"model": "deepseek-r1-distill-llama-70b",<br>
-&nbsp;&nbsp;"claw": "AnalystClaw",<br>
-&nbsp;&nbsp;"usage": { "prompt_tokens": 47, "completion_tokens": 892 }<br>
-}
-        </div>
-      </div>
-    </section>
-
-    <section class="pricing">
-      <h2>Pricing</h2>
-      <p class="sub">Start free. Scale infinitely.</p>
-      <div class="price-grid">
-        <div class="price-card">
-          <div class="tier">Explorer</div>
-          <div class="price">$0<span>/mo</span></div>
-          <ul>
-            <li>1,000 API calls/month</li>
-            <li>1 OpenClaw agent</li>
-            <li>Groq fast model access</li>
-            <li>100MB Tigris storage</li>
-            <li>Community support</li>
-          </ul>
-          <a href="/api/keys" class="btn btn-outline" style="width:100%;justify-content:center">Get Started</a>
-        </div>
-        <div class="price-card featured">
-          <div class="tier">Builder</div>
-          <div class="price">$29<span>/mo</span></div>
-          <ul>
-            <li>50,000 API calls/month</li>
-            <li>10 OpenClaw agents</li>
-            <li>All Groq models</li>
-            <li>5GB Tigris storage</li>
-            <li>Self-training engine</li>
-            <li>Priority support</li>
-          </ul>
-          <a href="/api/keys" class="btn btn-primary" style="width:100%;justify-content:center">Start Building</a>
-        </div>
-        <div class="price-card">
-          <div class="tier">Enterprise</div>
-          <div class="price">Custom</div>
-          <ul>
-            <li>Unlimited API calls</li>
-            <li>Unlimited agents</li>
-            <li>Custom model training</li>
-            <li>Unlimited storage</li>
-            <li>Dedicated infrastructure</li>
-            <li>SLA + 24/7 support</li>
-          </ul>
-          <a href="mailto:evez@evezstation.fly.dev" class="btn btn-outline" style="width:100%;justify-content:center">Contact Us</a>
-        </div>
-      </div>
-    </section>
-
-    <footer>
-      <p>EVEZ Station &copy; 2026 — Built by <a href="https://github.com/EvezArt">EvezArt</a> | <a href="/docs">API Docs</a> | <a href="/api/health">Status</a></p>
-    </footer>
+<nav>
+  <div class="logo">EVEZ <span>Station</span></div>
+  <div class="nav-links">
+    <a href="#services">Services</a>
+    <a href="#quickstart">Quickstart</a>
+    <a href="#pricing">Pricing</a>
+    <a href="https://github.com/EvezArt" target="_blank">GitHub</a>
+    <a href="/.well-known/openapi.json" target="_blank">API Docs</a>
+    <a href="#get-key" class="btn btn-primary">Get API Key →</a>
   </div>
+</nav>
 
-  <script>
-    // Live stats counter animation
-    function animateValue(el, start, end, duration) {
-      const range = end - start;
-      const increment = range / (duration / 16);
-      let current = start;
-      const timer = setInterval(() => {
-        current += increment;
-        if (current >= end) { current = end; clearInterval(timer); }
-        el.textContent = Math.floor(current).toLocaleString();
-      }, 16);
+<!-- STATUS BAR -->
+<div class="status-bar" id="status-bar">
+  <div class="status-item"><span class="status-dot"></span> All systems operational</div>
+  <div class="status-item" id="s-octoklaw">OctoKlaw <strong>—</strong></div>
+  <div class="status-item" id="s-meshpulse">MeshPulse <strong>—</strong></div>
+  <div class="status-item" id="s-quantumseal">QuantumSeal <strong>—</strong></div>
+  <div class="status-item" id="s-nexuslink">NexusLink <strong>—</strong></div>
+  <div class="status-item" id="s-spectrumscan">SpectrumScan <strong>—</strong></div>
+  <div class="status-item" id="s-vortexq">VortexQ <strong>—</strong></div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="badge">⚡ Universal AI Workstation · 6 APIs · Free to Start</div>
+  <h1>The workstation that plugs into <span>any AI</span></h1>
+  <p>OctoKlaw · MeshPulse · QuantumSeal · NexusLink · SpectrumScan · VortexQ — one API key, works in ChatGPT, Claude, Perplexity, and any OpenAPI client.</p>
+  <div class="hero-cta">
+    <a href="#get-key" class="btn btn-primary">Get Free API Key →</a>
+    <a href="/.well-known/openapi.json" class="btn btn-outline" target="_blank">View OpenAPI Spec</a>
+  </div>
+</section>
+
+<!-- QUICK START -->
+<div class="quickstart" id="quickstart">
+  <div class="quickstart-card">
+    <div class="qs-tabs">
+      <div class="qs-tab active" onclick="showTab('curl')">cURL</div>
+      <div class="qs-tab" onclick="showTab('python')">Python</div>
+      <div class="qs-tab" onclick="showTab('js')">JavaScript</div>
+      <div class="qs-tab" onclick="showTab('chatgpt')">ChatGPT Plugin</div>
+    </div>
+    <div class="qs-body">
+      <div id="tab-curl">
+        <pre class="code"><span class="c"># 1. Get your free API key (one-time)</span>
+<span class="k">curl</span> -X POST https://evezstation.vercel.app/api/keys \
+  -H <span class="s">'Content-Type: application/json'</span> \
+  -d <span class="s">'{"name":"my-key","email":"you@example.com"}'</span>
+
+<span class="c"># 2. Use it — scan a site for security issues</span>
+<span class="k">curl</span> -X POST https://evezstation.vercel.app/api/scan \
+  -H <span class="s">'x-api-key: YOUR_KEY'</span> \
+  -H <span class="s">'Content-Type: application/json'</span> \
+  -d <span class="s">'{"url":"https://github.com"}'</span></pre>
+        <div class="qs-result">→ {"grade":"A+","score":98,"headers":{"csp":"present","hsts":"present",...}}</div>
+      </div>
+      <div id="tab-python" style="display:none">
+        <pre class="code"><span class="k">import</span> requests
+
+KEY = <span class="s">"evez_your_key_here"</span>
+BASE = <span class="s">"https://evezstation.vercel.app"</span>
+
+<span class="c"># Shorten a URL with NexusLink</span>
+r = requests.post(f<span class="s">"{BASE}/api/links"</span>,
+    headers={<span class="s">"x-api-key"</span>: KEY},
+    json={<span class="s">"url"</span>: <span class="s">"https://your-long-url.com/article/123"</span>, <span class="s">"name"</span>: <span class="s">"my-link"</span>})
+print(r.json()[<span class="s">"short_url"</span>])  <span class="c"># → https://evezstation.vercel.app/r/XYZ123</span></pre>
+        <div class="qs-result">→ {"short_url":"https://evezstation.vercel.app/r/XYZ123","clicks":0}</div>
+      </div>
+      <div id="tab-js" style="display:none">
+        <pre class="code"><span class="k">const</span> KEY = <span class="s">"evez_your_key_here"</span>;
+
+<span class="c">// Seal content with QuantumSeal — tamper-proof hash</span>
+<span class="k">const</span> res = <span class="k">await</span> fetch(<span class="s">"https://evezstation.vercel.app/api/seal"</span>, {
+  method: <span class="s">"POST"</span>,
+  headers: { <span class="s">"x-api-key"</span>: KEY, <span class="s">"Content-Type"</span>: <span class="s">"application/json"</span> },
+  body: JSON.stringify({ content: <span class="s">"My document v1.0"</span>, algorithm: <span class="s">"sha256"</span> })
+});
+<span class="k">const</span> { seal_id, hash } = <span class="k">await</span> res.json();
+console.log(seal_id, hash);</pre>
+        <div class="qs-result">→ {"seal_id":"seal_abc123","hash":"e3b0c4...","verified":true}</div>
+      </div>
+      <div id="tab-chatgpt" style="display:none">
+        <pre class="code"><span class="c"># In ChatGPT → Settings → Beta → Plugins → Install Custom Plugin</span>
+<span class="n">Manifest URL:</span>
+  https://evezstation.vercel.app/.well-known/ai-plugin.json
+
+<span class="c"># Or use as ChatGPT Action:</span>
+<span class="n">OpenAPI URL:</span>
+  https://evezstation.vercel.app/.well-known/openapi.json
+
+<span class="c"># Works with: Claude MCP, Perplexity, Kimi, any OpenAPI client</span>
+<span class="n">MCP Tools URL:</span>
+  https://evezstation.vercel.app/api/mcp/tools</pre>
+        <div class="qs-result">→ EVEZ Station connected · 11 tools available · No API key needed for plugin discovery</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SERVICES -->
+<section class="section" id="services">
+  <div class="section-header">
+    <h2>6 production APIs. One key.</h2>
+    <p>Each service is independently scalable and billable. Start free, upgrade per service.</p>
+  </div>
+  <div class="services-grid">
+    <div class="service-card">
+      <div class="service-icon">🦑</div>
+      <div class="service-name">OctoKlaw</div>
+      <div class="service-desc">Extract and analyze web content from any URL — titles, headings, links, images, text, and AI-powered insights.</div>
+      <div class="service-endpoints">
+        <span class="endpoint-tag">POST /api/extract</span>
+        <span class="endpoint-tag">POST /api/analyze</span>
+      </div>
+      <div class="service-price">Free: 100 req/day · Pro: <strong>$9/mo</strong></div>
+    </div>
+    <div class="service-card">
+      <div class="service-icon">📡</div>
+      <div class="service-name">MeshPulse</div>
+      <div class="service-desc">Real-time uptime monitoring with multi-region health checks, response time tracking, and instant alerts.</div>
+      <div class="service-endpoints">
+        <span class="endpoint-tag">POST /api/monitors</span>
+        <span class="endpoint-tag">GET /api/monitors</span>
+        <span class="endpoint-tag">POST /api/monitors/:id/check</span>
+      </div>
+      <div class="service-price">Free: 5 monitors · Pro: <strong>$7/mo</strong></div>
+    </div>
+    <div class="service-card">
+      <div class="service-icon">🔐</div>
+      <div class="service-name">QuantumSeal</div>
+      <div class="service-desc">Tamper-proof SHA-256 sealing and cryptographic verification with full chain-of-custody audit trails.</div>
+      <div class="service-endpoints">
+        <span class="endpoint-tag">POST /api/seal</span>
+        <span class="endpoint-tag">POST /api/verify</span>
+      </div>
+      <div class="service-price">Free: 200 seals/day · Pro: <strong>$5/mo</strong></div>
+    </div>
+    <div class="service-card">
+      <div class="service-icon">🔗</div>
+      <div class="service-name">NexusLink</div>
+      <div class="service-desc">Smart URL shortener with click analytics, custom codes, and redirect rules. Built-in QR generation.</div>
+      <div class="service-endpoints">
+        <span class="endpoint-tag">POST /api/links</span>
+        <span class="endpoint-tag">GET /r/:code</span>
+      </div>
+      <div class="service-price">Free: 50 links · Pro: <strong>$4/mo</strong></div>
+    </div>
+    <div class="service-card">
+      <div class="service-icon">🔍</div>
+      <div class="service-name">SpectrumScan</div>
+      <div class="service-desc">Full-spectrum security scanner — grade any website A+ to F on headers, TLS, CSP, HSTS, and vulnerability surface.</div>
+      <div class="service-endpoints">
+        <span class="endpoint-tag">POST /api/scan</span>
+        <span class="endpoint-tag">POST /api/compare</span>
+      </div>
+      <div class="service-price">Free: 30 scans/day · Pro: <strong>$12/mo</strong></div>
+    </div>
+    <div class="service-card">
+      <div class="service-icon">⚡</div>
+      <div class="service-name">VortexQ</div>
+      <div class="service-desc">Background job queue with priority lanes, cron scheduling, webhook delivery, and dead-letter queue support.</div>
+      <div class="service-endpoints">
+        <span class="endpoint-tag">POST /api/jobs</span>
+        <span class="endpoint-tag">GET /api/jobs/:id</span>
+      </div>
+      <div class="service-price">Free: 500 jobs/day · Pro: <strong>$8/mo</strong></div>
+    </div>
+  </div>
+</section>
+
+<!-- GET KEY -->
+<section class="key-form" id="get-key">
+  <h2>Get your free API key</h2>
+  <p>One key unlocks all 6 services. No credit card required.</p>
+  <div class="form-row">
+    <input type="text" id="key-name" placeholder="Key name (e.g. my-project)" />
+    <input type="email" id="key-email" placeholder="Email (optional)" />
+    <button class="btn btn-primary" onclick="generateKey()">Generate →</button>
+  </div>
+  <div id="key-error"></div>
+  <div id="key-result">
+    <div class="key-value" id="key-value"></div>
+    <div class="key-hint">Save this key — it won't be shown again. Pass it as <code>x-api-key</code> header or <code>?api_key=</code> query param.</div>
+    <div class="key-hint" style="margin-top:0.5rem;">
+      Quick test: <code>curl -X POST /api/scan -H "x-api-key: YOUR_KEY" -d '{"url":"https://google.com"}'</code>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="section" id="pricing">
+  <div class="section-header">
+    <h2>Simple, per-service pricing</h2>
+    <p>Pay only for what you use. Upgrade any individual service independently.</p>
+  </div>
+  <div class="pricing-grid">
+    <div class="pricing-card">
+      <div class="plan-name">Free</div>
+      <div class="plan-price">$0 <span>/ forever</span></div>
+      <ul class="plan-features">
+        <li>All 6 services included</li>
+        <li>100–500 req/day per service</li>
+        <li>ChatGPT + Claude MCP access</li>
+        <li>Shared infrastructure</li>
+        <li class="no">SLA guarantee</li>
+        <li class="no">Priority support</li>
+      </ul>
+    </div>
+    <div class="pricing-card featured">
+      <div class="featured-badge">MOST POPULAR</div>
+      <div class="plan-name">Per-Service Pro</div>
+      <div class="plan-price">$4–12 <span>/ service / mo</span></div>
+      <ul class="plan-features">
+        <li>Unlimited requests</li>
+        <li>99.9% SLA per service</li>
+        <li>Priority queue access</li>
+        <li>Analytics dashboard</li>
+        <li>Webhook delivery</li>
+        <li>Email support</li>
+      </ul>
+    </div>
+    <div class="pricing-card">
+      <div class="plan-name">All-Access</div>
+      <div class="plan-price">$37 <span>/ mo</span></div>
+      <ul class="plan-features">
+        <li>All 6 services unlocked</li>
+        <li>Training data export</li>
+        <li>Fine-tune access (Groq)</li>
+        <li>Custom API domains</li>
+        <li>99.9% SLA across all</li>
+        <li>Slack support channel</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p style="margin-bottom:0.5rem;">
+    <a href="https://github.com/EvezArt">GitHub</a> ·
+    <a href="/.well-known/openapi.json">API Docs</a> ·
+    <a href="/.well-known/ai-plugin.json">ChatGPT Plugin</a> ·
+    <a href="/api/mcp/tools">MCP Tools</a> ·
+    <a href="/api/health">Status</a> ·
+    <a href="mailto:evezproductions@gmail.com">Support</a>
+  </p>
+  <p>© 2026 EVEZ Station · Built for AI-native applications</p>
+</footer>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.qs-tab').forEach((t,i) => {
+    const ids = ['curl','python','js','chatgpt'];
+    t.classList.toggle('active', ids[i] === name);
+  });
+  ['curl','python','js','chatgpt'].forEach(id => {
+    const el = document.getElementById('tab-' + id);
+    if (el) el.style.display = id === name ? 'block' : 'none';
+  });
+}
+
+async function generateKey() {
+  const name = document.getElementById('key-name').value.trim();
+  const email = document.getElementById('key-email').value.trim();
+  const errEl = document.getElementById('key-error');
+  const resEl = document.getElementById('key-result');
+  errEl.style.display = 'none';
+  resEl.style.display = 'none';
+  if (!name) { errEl.textContent = 'Please enter a key name.'; errEl.style.display = 'block'; return; }
+  try {
+    const r = await fetch('/api/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email: email || undefined })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed to generate key');
+    document.getElementById('key-value').textContent = data.api_key;
+    resEl.style.display = 'block';
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+// Load live status
+fetch('/api/health').then(r => r.json()).then(d => {
+  const services = d.services || {};
+  ['octoklaw','meshpulse','quantumseal','nexuslink','spectrumscan','vortexq'].forEach(s => {
+    const el = document.getElementById('s-' + s);
+    if (el) {
+      const ok = services[s] === 'ok' || services[s] === true;
+      el.innerHTML = s.charAt(0).toUpperCase()+s.slice(1) + ' <strong style="color:' + (ok?'var(--green)':'var(--red)') + '">' + (ok?'OK':'ERR') + '</strong>';
     }
-    
-    // Fetch live stats
-    fetch('/api/system/metrics')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d && d.total_calls) animateValue(document.getElementById('stat-calls'), 0, d.total_calls, 2000);
-      })
-      .catch(() => {});
-  </script>
+  });
+}).catch(() => {});
+</script>
 </body>
 </html>
