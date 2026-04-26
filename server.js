@@ -181,42 +181,7 @@ app.get('/api/health', (_, res) => {
 });
 
 // ── Homepage (HTML for browsers) ──
-app.get('/', (_, res) => {
-  res.send(`<!DOCTYPE html>
-<html><head><title>EVEZ Station</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a0a;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:2rem}
-.hero{text-align:center;margin:2rem 0}.hero h1{font-size:3rem;background:linear-gradient(135deg,#00ff88,#00bbff,#ff00ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem}
-.hero p{color:#888;font-size:1.2rem;max-width:600px;margin:0 auto}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;max-width:1000px;width:100%;margin:2rem 0}
-.card{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:1.5rem;transition:border-color 0.3s}.card:hover{border-color:#00ff88}
-.card h3{font-size:1.1rem;margin-bottom:0.5rem;color:#fff}.card p{color:#888;font-size:0.9rem;line-height:1.5}
-.badge{display:inline-block;background:#00ff8820;color:#00ff88;padding:2px 8px;border-radius:4px;font-size:0.75rem;margin-top:0.5rem}
-.protocols{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;margin:1rem 0}
-.proto{background:#111;border:1px solid #333;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;color:#aaa}
-code{background:#111;padding:2px 6px;border-radius:4px;font-size:0.85rem;color:#00ff88}
-.cta{margin:2rem 0;text-align:center}.cta a{color:#00bbff;text-decoration:none;font-size:1.1rem}
-footer{margin-top:auto;padding:2rem;color:#555;font-size:0.8rem;text-align:center}
-</style></head><body>
-<div class="hero"><h1>⚡ EVEZ Station</h1><p>Universal AI Workstation — 6 monetizable APIs, connectable by any AI system on earth</p></div>
-<div class="protocols">
-<div class="proto">🔌 OpenAPI 3.1</div><div class="proto">🤖 ChatGPT Actions</div>
-<div class="proto">🔗 MCP Compatible</div><div class="proto">🌐 REST API</div>
-</div>
-<div class="grid">
-<div class="card"><h3>🐙 OctoKlaw</h3><p>Web intelligence extraction + NLP analysis. Structured data from any URL.</p><span class="badge">POST /api/extract</span></div>
-<div class="card"><h3>📡 MeshPulse</h3><p>Uptime monitoring + incident detection. Track response times across the web.</p><span class="badge">POST /api/monitors</span></div>
-<div class="card"><h3>🔐 QuantumSeal</h3><p>Tamper-proof hashing + chain verification. Cryptographic audit trails.</p><span class="badge">POST /api/seal</span></div>
-<div class="card"><h3>🔗 NexusLink</h3><p>URL shortening + click analytics. Device tracking, expiring links.</p><span class="badge">POST /api/links</span></div>
-<div class="card"><h3>🛡️ SpectrumScan</h3><p>Security header scanner. Grade A+ to F with actionable recommendations.</p><span class="badge">POST /api/scan</span></div>
-<div class="card"><h3>🌀 VortexQ</h3><p>Async job queue. Priority, retry logic, dead-letter, webhook notifications.</p><span class="badge">POST /api/jobs</span></div>
-</div>
-<div class="cta">
-<p style="margin-bottom:1rem">Get started: <code>POST /api/keys</code> with <code>{"name": "my-app"}</code></p>
-<p><a href="/.well-known/openapi.json">OpenAPI Spec</a> · <a href="/.well-known/ai-plugin.json">ChatGPT Plugin</a> · <a href="/api/mcp/tools">MCP Tools</a> · <a href="/api/health">Health</a></p>
-</div>
-<footer>EVEZ Station v1.0 · Built by <a href="https://github.com/EvezArt" style="color:#00ff88">@EvezArt</a> · 6 APIs · Infinite Mesh</footer>
-</body></html>`);
-});
+// ── Homepage served from public/index.html (see GET / below) ──
 
 // ── Shared Key Generation ──
 async function generateKey(req, res, body) {
