@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+dist/
+build/
+*.log
+.DS_Store
+.vercel
+.fly
+coverage/
+.nyc_output/
+*.tgz
+.keepalive
