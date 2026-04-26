@@ -1,6 +1,7 @@
 // inference-loop.js
 // Closes the self-training loop.
 // Every inference call becomes a new training pair.
+// FIXED: column names match evezstation.training_pairs schema
 
 const MIN_QUALITY_TO_LOG = 0.5;
 
@@ -33,12 +34,18 @@ export const logInferencePair = async (supabase, { modelId, input, output, laten
   }
 
   try {
+    const inputData = typeof input === 'object' ? input : { raw: input };
+    const outputData = typeof output === 'object' ? output : { raw: output };
+
     const { error } = await supabase.schema('evezstation').from('training_pairs').insert({
-      input:         typeof input === 'string' ? input : JSON.stringify(input),
-      output:        typeof output === 'string' ? output : JSON.stringify(output),
+      service:       'inference',
+      endpoint:      `/inference/${modelId}`,
+      input_data:    inputData,
+      output_data:   outputData,
       quality_score: quality,
-      source:        'inference_loop',
-      model_id:      modelId,
+      latency_ms:    Math.round(latencyMs || 0),
+      tokens_in:     JSON.stringify(inputData).length,
+      tokens_out:    JSON.stringify(outputData).length,
       created_at:    new Date().toISOString()
     });
 

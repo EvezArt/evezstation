@@ -1,4 +1,5 @@
-// middleware.js — error boundary + Vercel serverless compat
+// middleware.js — Error boundary + Vercel compatibility (ESM)
+// Import: import { safe, errorBoundary } from './middleware.js';
 
 export const safe = (fn) => async (req, res, next) => {
   try {
@@ -25,13 +26,3 @@ export const errorBoundary = (err, req, res, next) => {
     });
   }
 };
-
-export const makeVercelReady = (app, port = 3000) => {
-  if (process.env.NODE_ENV !== 'production') {
-    app.listen(port, () => {
-      console.log(`[EVEZ] Running locally on port ${port}`);
-    });
-  }
-};
-
-export default { safe, errorBoundary, makeVercelReady };
