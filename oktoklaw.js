@@ -183,7 +183,7 @@ class OktoKlaw {
     this.store.addMessage(threadId, "user", message);
 
     // Build messages for LLM
-    const messages = conv.messages.filter(m => m.role && m.content);
+    const messages = conv.messages.filter(m => m.role && m.content).map(({ role, content }) => ({ role, content }));
 
     try {
       const result = await groqChat(messages, {
@@ -226,7 +226,7 @@ class OktoKlaw {
     
     const persona = PERSONAS[conv.persona] || PERSONAS.default;
     this.store.addMessage(threadId, "user", message);
-    const messages = conv.messages.filter(m => m.role && m.content);
+    const messages = conv.messages.filter(m => m.role && m.content).map(({ role, content }) => ({ role, content }));
 
     const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
     const model = GROQ_MODELS[options.model || persona.model] || GROQ_MODELS.fast;
