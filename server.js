@@ -1371,7 +1371,6 @@ const PORT = process.env.PORT || 3000;
 // Multi-persona AI chat with persistent threads
 // ═══════════════════════════════════════════════════════════════
 
-import oktoklaw from "./oktoklaw.js";
 
 // List available personas
 app.get("/api/oktoklaw/personas", (req, res) => {
