@@ -10,6 +10,7 @@ import { Swarm, createSwarm } from "./swarm.js";
 import { TemporalQueue } from "./temporal.js";
 import { BattlefieldPlatform } from "./battlefield.js";
 import { enterpriseMiddleware, TIERS } from "./enterprise.js";
+import oktoklaw from "./oktoklaw.js";
 import { makeInferenceLogger } from './inference-loop.js';
 import { safe, errorBoundary } from './middleware.js';
 import { registerBillingRoutes, checkQuota } from './billing.js';
@@ -1364,6 +1365,130 @@ app.get('/docs', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// ═══════════════════════════════════════════════════════════════
+// OKTOKLAW — Intelligent Chatbot Engine
+// Multi-persona AI chat with persistent threads
+// ═══════════════════════════════════════════════════════════════
+
+import oktoklaw from "./oktoklaw.js";
+
+// List available personas
+app.get("/api/oktoklaw/personas", (req, res) => {
+  res.json(oktoklaw.getPersonas());
+});
+
+// Start new conversation
+app.post("/api/oktoklaw/start", (req, res) => {
+  const { userId = "anon", persona = "default" } = req.body || {};
+  const result = oktoklaw.startConversation(userId, persona);
+  res.json(result);
+});
+
+// Send message (non-streaming)
+app.post("/api/oktoklaw/chat", async (req, res) => {
+  try {
+    const { threadId, message, model, temperature, max_tokens } = req.body || {};
+    if (!threadId || !message) return res.status(400).json({ error: "threadId and message required" });
+    const result = await oktoklaw.chat(threadId, message, { model, temperature, max_tokens });
+    res.json(result);
+  } catch (err) {
+    res.status(err.message.includes("not found") ? 404 : 500).json({ error: err.message });
+  }
+});
+
+// Send message (streaming SSE)
+app.post("/api/oktoklaw/chat/stream", async (req, res) => {
+  try {
+    const { threadId, message, model, temperature, max_tokens } = req.body || {};
+    if (!threadId || !message) return res.status(400).json({ error: "threadId and message required" });
+    
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+
+    const { stream, onComplete } = await oktoklaw.chatStream(threadId, message, { model, temperature, max_tokens });
+    let fullText = "";
+    
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      // Parse SSE from Groq
+      const lines = chunk.split("\n");
+      for (const line of lines) {
+        if (line.startsWith("data: ") && line !== "data: [DONE]") {
+          try {
+            const json = JSON.parse(line.slice(6));
+            const delta = json.choices?.[0]?.delta?.content || "";
+            if (delta) {
+              fullText += delta;
+              res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+            }
+          } catch (e) { /* skip parse errors */ }
+        }
+      }
+    }
+    
+    onComplete(fullText);
+    res.write("data: [DONE]\n\n");
+    res.end();
+  } catch (err) {
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    }
+  }
+});
+
+// Get conversation history
+app.get("/api/oktoklaw/thread/:threadId", (req, res) => {
+  const conv = oktoklaw.getConversation(req.params.threadId);
+  if (!conv) return res.status(404).json({ error: "Thread not found" });
+  res.json(conv);
+});
+
+// List user conversations
+app.get("/api/oktoklaw/threads", (req, res) => {
+  const userId = req.query.userId || "anon";
+  res.json(oktoklaw.listConversations(userId));
+});
+
+// Delete conversation
+app.delete("/api/oktoklaw/thread/:threadId", (req, res) => {
+  const deleted = oktoklaw.deleteConversation(req.params.threadId);
+  res.json({ deleted });
+});
+
+// Switch persona mid-conversation
+app.put("/api/oktoklaw/persona", (req, res) => {
+  try {
+    const { threadId, persona } = req.body || {};
+    if (!threadId || !persona) return res.status(400).json({ error: "threadId and persona required" });
+    const result = oktoklaw.switchPersona(threadId, persona);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// OktoKlaw stats
+app.get("/api/oktoklaw/stats", (req, res) => {
+  res.json(oktoklaw.getStats());
+});
+
+// Serve chat UI
+app.get("/chat", (req, res) => {
+  res.sendFile("chat.html", { root: join(__dirname, "public") });
+});
+
 // Vercel serverless: export the app; Fly/Docker: listen on PORT
 if (process.env.VERCEL) {
   // Vercel handles routing — no listen needed
