@@ -8,7 +8,7 @@ const MODELS = {
   reasoning: "deepseek-r1-distill-llama-70b",
   small: "llama-3.1-8b-instant",
   vision: "llama-3.2-90b-vision-preview",
-  code: "qwen-qwq-32b",
+  code: "llama-3.3-70b-versatile",
 };
 
 export async function groqChat(messages, options = {}) {
