@@ -5,9 +5,9 @@ const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 const MODELS = {
   fast: "llama-3.3-70b-versatile",
-  reasoning: "deepseek-r1-distill-llama-70b",
+  reasoning: "llama-3.3-70b-versatile",
   small: "llama-3.1-8b-instant",
-  vision: "llama-3.2-90b-vision-preview",
+  vision: "llama-3.2-11b-vision-preview",
   code: "llama-3.3-70b-versatile",
 };
 
