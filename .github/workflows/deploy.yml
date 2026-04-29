@@ -26,9 +26,9 @@ jobs:
 
       - name: Ensure app exists
         run: |
-          flyctl apps create evezstation --org evez 2>/dev/null \
+          flyctl apps create evezstation 2>/dev/null \
             && echo "App created" \
-            || echo "App already exists (or org mismatch — continuing)"
+            || echo "App already exists — continuing"
 
       - name: Inject secrets into Fly
         run: |
@@ -58,7 +58,7 @@ jobs:
               --max-time 10 \
               https://evezstation.fly.dev/api/health)
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "Health check passed (HTTP $HTTP_CODE)"
+              echo "✅ Health check passed (HTTP $HTTP_CODE)"
               cat /tmp/health.json | jq . 2>/dev/null || cat /tmp/health.json
               exit 0
             fi
