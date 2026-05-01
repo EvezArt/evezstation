@@ -1,0 +1,19 @@
+name: Diagnostic Test
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    name: Runner Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo test
+        run: echo "Runner is working! $(date)"
+      - name: Check FLY_API_TOKEN secret
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "FLY_API_TOKEN is EMPTY or not set"
+          else
+            echo "FLY_API_TOKEN is SET (length: ${#FLY_API_TOKEN})"
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
