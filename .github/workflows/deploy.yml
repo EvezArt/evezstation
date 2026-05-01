@@ -24,10 +24,10 @@ jobs:
       - name: Setup Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Ensure app exists
+      - name: Ensure app exists (org evez666)
         run: |
-          flyctl apps create evezstation 2>/dev/null \
-            && echo "App created" \
+          flyctl apps create evezstation --org evez666 2>/dev/null \
+            && echo "App created under evez666" \
             || echo "App already exists — continuing"
 
       - name: Inject secrets into Fly
@@ -41,37 +41,34 @@ jobs:
             AWS_REGION="${{ secrets.AWS_REGION }}" \
             AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
             BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
+            --app evezstation \
             --stage
 
       - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only --strategy rolling --wait-timeout 300
+        run: flyctl deploy --remote-only --strategy rolling --wait-timeout 300 --app evezstation
 
       - name: Post-deploy health check
         run: |
           echo "Waiting 20s for machine to stabilize..."
           sleep 20
-          MAX_RETRIES=6
-          RETRY_DELAY=10
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "Health check attempt $i/$MAX_RETRIES..."
-            HTTP_CODE=$(curl -s -o /tmp/health.json -w "%{http_code}" \
-              --max-time 10 \
-              https://evezstation.fly.dev/api/health)
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Health check passed (HTTP $HTTP_CODE)"
+          for i in $(seq 1 6); do
+            echo "Health check attempt $i/6..."
+            HTTP=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 10 https://evezstation.fly.dev/api/health)
+            if [ "$HTTP" = "200" ]; then
+              echo "✅ Healthy (HTTP 200)"
               cat /tmp/health.json | jq . 2>/dev/null || cat /tmp/health.json
               exit 0
             fi
-            echo "Got HTTP $HTTP_CODE, retrying in ${RETRY_DELAY}s..."
-            sleep $RETRY_DELAY
+            echo "HTTP $HTTP — retrying in 10s..."
+            sleep 10
           done
-          echo "Health check failed after $MAX_RETRIES attempts"
-          cat /tmp/health.json 2>/dev/null
+          echo "Health check failed"
+          flyctl logs -a evezstation --no-tail 2>/dev/null | tail -30 || true
           exit 1
 
-      - name: Deploy failure notification
+      - name: On failure — dump logs
         if: failure()
         run: |
-          echo "::error::Deployment failed. Check Fly.io logs: flyctl logs -a evezstation"
+          echo "::error::Deploy failed. Fly.io logs:"
           flyctl status -a evezstation || true
-          flyctl logs -a evezstation --no-tail 2>/dev/null | tail -50 || true
+          flyctl logs -a evezstation --no-tail 2>/dev/null | tail -40 || true
