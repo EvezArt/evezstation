@@ -1,0 +1,87 @@
+name: EVEZ Cascade Deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: "Apps to deploy (all|hyperstream|openclaw)"
+        default: "all"
+        required: false
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  deploy-evezstation:
+    name: Deploy EVEZ Station
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Create app if not exists
+        run: flyctl apps create evezstation --org evez 2>/dev/null || true
+      - name: Set secrets
+        run: |
+          flyctl secrets set \
+            SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            SUPABASE_SERVICE_KEY="${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" \
+            AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            AWS_ENDPOINT_URL_S3="${{ secrets.AWS_ENDPOINT_URL_S3 }}" \
+            AWS_REGION="${{ secrets.AWS_REGION }}" \
+            BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
+            --app evezstation --stage 2>/dev/null || true
+      - name: Deploy
+        run: flyctl deploy --remote-only --strategy rolling --wait-timeout 300 --app evezstation
+
+  deploy-hyperstream:
+    name: Deploy HyperStream
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.inputs.apps == 'all' || github.event.inputs.apps == 'hyperstream' || github.event.inputs.apps == ''
+    steps:
+      - name: Checkout hyperstream
+        uses: actions/checkout@v4
+        with:
+          repository: EvezArt/evez-hyperstream
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Create app if not exists
+        run: flyctl apps create evez-hyperstream --org evez 2>/dev/null || true
+      - name: Set secrets
+        run: |
+          flyctl secrets set \
+            GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" \
+            --app evez-hyperstream 2>/dev/null || true
+      - name: Deploy HyperStream
+        run: flyctl deploy --remote-only --wait-timeout 600 --app evez-hyperstream
+
+  deploy-openclaw:
+    name: Deploy OpenClaw Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event.inputs.apps == 'all' || github.event.inputs.apps == 'openclaw' || github.event.inputs.apps == ''
+    steps:
+      - name: Checkout openclaw
+        uses: actions/checkout@v4
+        with:
+          repository: EvezArt/openclaw
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Create app if not exists
+        run: flyctl apps create evez-openclaw --org evez 2>/dev/null || true
+      - name: Set secrets
+        run: |
+          flyctl secrets set \
+            SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            SUPABASE_SERVICE_KEY="${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" \
+            --app evez-openclaw 2>/dev/null || true
+      - name: Deploy
+        run: flyctl deploy --remote-only --wait-timeout 300 --app evez-openclaw
