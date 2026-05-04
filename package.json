@@ -1,20 +1,21 @@
 {
   "name": "evezstation",
-  "version": "2.0.1",
-  "private": true,
-  "type": "module",
+  "version": "3.0.0",
+  "description": "EVEZ Station \u2014 Autonomous AI Platform with OpenClaw Agents",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "nodemon server.js",
+    "test": "node --test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.700.0",
-    "@supabase/supabase-js": "^2.45.0",
-    "express": "^4.19.2",
+    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "stripe": "^17.0.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "@aws-sdk/client-s3": "^3.525.0",
+    "groq-sdk": "^0.3.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.0.0"
   }
 }
