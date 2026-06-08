@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: evezstation
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_ENDPOINT_URL_S3
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: BUCKET_NAME
+        sync: false
+    healthCheckPath: /api/health
+    autoDeploy: true
