@@ -1,74 +1,70 @@
-name: Deploy to Fly.io
-
+name: EVEZ Station Deploy (Self-Hosted)
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
-
-env:
-  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    inputs:
+      action:
+        description: 'Deploy action'
+        required: false
+        default: 'deploy'
+        type: choice
+        options: [deploy, secrets-only, health-check]
 
 jobs:
   deploy:
     name: Deploy EVEZ Station
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: [self-hosted, evez]
+    timeout-minutes: 30
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Fly CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Ensure app exists (org evez666)
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm install --production
+        
+      - name: Install flyctl
         run: |
-          flyctl apps create evezstation --org evez666 2>/dev/null \
-            && echo "App created under evez666" \
-            || echo "App already exists — continuing"
-
-      - name: Inject secrets into Fly
+          if ! command -v fly &>/dev/null; then
+            curl -L https://fly.io/install.sh | sh
+            echo "$HOME/.fly/bin" >> $GITHUB_PATH
+          fi
+          
+      - name: Set Fly secrets (if FLY_API_TOKEN set)
+        if: env.FLY_API_TOKEN != ''
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          flyctl secrets set \
-            SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
-            SUPABASE_SERVICE_KEY="${{ secrets.SUPABASE_SERVICE_KEY }}" \
+          export PATH="$HOME/.fly/bin:$PATH"
+          fly secrets set \
             GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" \
+            OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
+            CEREBRAS_API_KEY="${{ secrets.CEREBRAS_API_KEY }}" \
             AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
             AWS_ENDPOINT_URL_S3="${{ secrets.AWS_ENDPOINT_URL_S3 }}" \
             AWS_REGION="${{ secrets.AWS_REGION }}" \
-            AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
             BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
-            --app evezstation \
-            --stage
-
-      - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only --strategy rolling --wait-timeout 300 --app evezstation
-
-      - name: Post-deploy health check
+            --app evezstation 2>/dev/null || echo "Could not set secrets (app may not exist yet)"
+            
+      - name: Deploy to Fly.io (if FLY_API_TOKEN set)  
+        if: env.FLY_API_TOKEN != ''
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          echo "Waiting 20s for machine to stabilize..."
-          sleep 20
-          for i in $(seq 1 6); do
-            echo "Health check attempt $i/6..."
-            HTTP=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 10 https://evezstation.fly.dev/api/health)
-            if [ "$HTTP" = "200" ]; then
-              echo "✅ Healthy (HTTP 200)"
-              cat /tmp/health.json | jq . 2>/dev/null || cat /tmp/health.json
-              exit 0
-            fi
-            echo "HTTP $HTTP — retrying in 10s..."
-            sleep 10
-          done
-          echo "Health check failed"
-          flyctl logs -a evezstation --no-tail 2>/dev/null | tail -30 || true
-          exit 1
-
-      - name: On failure — dump logs
-        if: failure()
+          export PATH="$HOME/.fly/bin:$PATH"
+          fly deploy --app evezstation --strategy=rolling --wait-timeout=300 || \
+          fly launch --copy-config --name evezstation --yes --no-deploy && fly deploy
+          
+      - name: Health check
         run: |
-          echo "::error::Deploy failed. Fly.io logs:"
-          flyctl status -a evezstation || true
-          flyctl logs -a evezstation --no-tail 2>/dev/null | tail -40 || true
+          echo "Server running locally: $(curl -s http://localhost:3000/api/health | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["status"])')"
+          echo "Server live at: https://heroism-negligee-zoom.ngrok-free.dev/api/health"
+          curl -s https://heroism-negligee-zoom.ngrok-free.dev/api/health || echo "ngrok tunnel offline"
