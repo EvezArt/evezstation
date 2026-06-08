@@ -1,0 +1,9 @@
+[phases.build]
+cmds = ["npm install --production"]
+
+[start]
+cmd = "node server.js"
+
+[variables]
+NODE_ENV = "production"
+PORT = "3000"
