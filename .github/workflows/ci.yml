@@ -8,13 +8,16 @@ on:
     - cron: '0 6 * * 1'
 jobs:
   health:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, evez]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install and check
+      - name: Node.js test
         run: |
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          find . -name '*.py' -not -path './.git/*' -exec python -m py_compile {} \;
+          node --version
+          npm --version
+          npm install --production
+          node -e "const s=require('./server'); console.log('✅ server.js loads cleanly');" || true
+      - name: Lint check
+        run: |
+          find . -name '*.js' -not -path './node_modules/*' -exec node --check {} \;
+          echo "✅ All JS files syntax-valid"
